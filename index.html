@@ -164,10 +164,9 @@
     .burn-button { transition: opacity .25s ease, transform .2s, box-shadow .2s, background .2s; }
     .near-privacy { margin: 8px 0 0; color: #b9c2c5; font-size: .72rem; transition: opacity .25s ease; }
     /* Chỉ gợi ý bật lửa khi trình duyệt yêu cầu giảm chuyển động. */
-    .motion-choice { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 3px 9px; margin: 3px 0 0; color: #c6cbcd; font-size: .74rem; transition: opacity .25s ease; }
+    .motion-choice { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 3px 9px; position: sticky; top: 0; z-index: 6; width: min(calc(100% - 36px), 575px); min-height: 44px; margin: 3px auto 0; padding: 2px 12px; border: 1px solid rgba(240,210,172,.28); border-radius: 12px; color: #e3d1bd; background: rgba(20,32,45,.96); font-size: .78rem; text-align: center; }
     .motion-choice button { min-height: 44px; padding: 5px 10px; border: 0; border-radius: 8px; color: #ffd39b; background: transparent; font-size: .78rem; font-weight: 700; text-decoration: underline; text-underline-offset: 3px; }
     .motion-choice button:hover { background: rgba(235,171,103,.12); }
-    .compose-view.is-burning .motion-choice { opacity: 0; pointer-events: none; }
     .burn-button { position: relative; isolation: isolate; }
     .burn-button::before { content: ""; position: absolute; inset: -6px; z-index: -1; border-radius: 999px; opacity: 0; background: conic-gradient(#ffe0a4 var(--hold-angle, 0deg), rgba(255,218,164,.12) 0); -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 5px), #000 calc(100% - 4px)); mask: radial-gradient(farthest-side, transparent calc(100% - 5px), #000 calc(100% - 4px)); transition: opacity .2s; }
     .burn-button.holding::before { opacity: 1; }
@@ -287,6 +286,8 @@
       <li data-step="quiet" aria-label="Lặng"></li>
       <li data-step="done" aria-label="Kết thúc"></li>
     </ol>
+    <!-- Báo rõ chế độ giảm chuyển động ở đầu trang để không bị khuất trên iPhone nhỏ. -->
+    <p class="motion-choice" id="motionChoice" hidden><span id="motionChoiceText">Giảm chuyển động đang ẩn lửa.</span><button id="motionToggle" type="button" aria-pressed="false">Hiện lửa</button></p>
     <main id="main">
       <section class="view compose-view" id="composeView" aria-labelledby="composeTitle">
         <p class="eyebrow">Một khoảng lặng dành cho bạn</p>
@@ -304,7 +305,7 @@
           </div>
         </div>
         <!-- Đổi ý dùng cùng ô nút, lời hứa riêng tư luôn ở ngay dưới. -->
-        <div class="burn-actions"><div class="action-row"><div class="button-slot"><button class="primary burn-button" id="burnButton" type="button" aria-label="Đốt đi" disabled><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M13 2c1 4-1 6-3 9-1.5-1.5-2-3-2-4-5 5-5 11-1 14 3 2 8 2 11-1 4-4 2-9-1-12 0 3-1 4-2 5 .5-4 0-7-2-11Z" fill="currentColor"/></svg><span id="burnLabel">Đốt đi</span></button><button class="cancel-button" id="cancelButton" type="button" aria-label="Đổi ý, giữ lại tờ giấy" hidden>Đổi ý</button></div><p class="near-privacy">Không lưu, không gửi đi đâu cả.</p><p class="motion-choice" id="motionChoice" hidden><span id="motionChoiceText">Chế độ giảm chuyển động đang ẩn lửa.</span><button id="motionToggle" type="button" aria-pressed="false">Hiện lửa</button></p></div><label class="hold-option"><input id="holdMode" type="checkbox"><span>Giữ để đốt · 1,5 giây</span></label></div>
+        <div class="burn-actions"><div class="action-row"><div class="button-slot"><button class="primary burn-button" id="burnButton" type="button" aria-label="Đốt đi" disabled><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M13 2c1 4-1 6-3 9-1.5-1.5-2-3-2-4-5 5-5 11-1 14 3 2 8 2 11-1 4-4 2-9-1-12 0 3-1 4-2 5 .5-4 0-7-2-11Z" fill="currentColor"/></svg><span id="burnLabel">Đốt đi</span></button><button class="cancel-button" id="cancelButton" type="button" aria-label="Đổi ý, giữ lại tờ giấy" hidden>Đổi ý</button></div><p class="near-privacy">Không lưu, không gửi đi đâu cả.</p></div><label class="hold-option"><input id="holdMode" type="checkbox"><span>Giữ để đốt · 1,5 giây</span></label></div>
         <p class="hint" id="status" role="status" aria-live="polite"></p>
       </section>
 
@@ -364,9 +365,9 @@
     announcement: $('comfortAnnouncement')
   };
   // Giảm chuyển động là mặc định; chỉ bật Canvas lửa khi người dùng chọn rõ ràng.
-  function syncMotionChoice() {
-    els.motionChoice.hidden = !motion.matches;
-    els.motionChoiceText.textContent = fireOverride ? 'Hiệu ứng lửa đã bật.' : 'Chế độ giảm chuyển động đang ẩn lửa.';
+  function syncMotionChoice(phase = 'write') {
+    els.motionChoice.hidden = !motion.matches || !['write','burn'].includes(phase);
+    els.motionChoiceText.textContent = fireOverride ? 'Hiệu ứng lửa đã bật.' : 'Giảm chuyển động đang ẩn lửa.';
     els.motionToggle.textContent = fireOverride ? 'Dùng hiệu ứng dịu' : 'Hiện lửa';
     els.motionToggle.setAttribute('aria-pressed', String(fireOverride));
     document.body.classList.toggle('fire-override', motion.matches && fireOverride);
@@ -402,6 +403,7 @@
     }
     setPhase(phase) {
       this.phase = phase;
+      syncMotionChoice(phase);
       document.querySelectorAll('.stage-track li').forEach(item => {
         if (item.dataset.step === phase) item.setAttribute('aria-current', 'step');
         else item.removeAttribute('aria-current');
@@ -630,11 +632,11 @@
       });
       els.motionToggle.addEventListener('click', () => {
         fireOverride = !fireOverride;
-        syncMotionChoice();
+        syncMotionChoice(this.phase);
         if (reducedMotion()) { particles.clear(); this.fireLight(0); }
         else scheduleLoop();
       });
-      syncMotionChoice();
+      syncMotionChoice(this.phase);
       this.syncSound(audio);
       this.updateCount();
     }
@@ -1327,7 +1329,7 @@
   });
   motion.addEventListener?.('change',() => {
     if (!motion.matches) fireOverride=false;
-    syncMotionChoice();
+    syncMotionChoice(ui.phase);
     if (reducedMotion()) { particles.clear(); ui.fireLight(0); }
     scheduleLoop();
   });
