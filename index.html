@@ -163,6 +163,11 @@
     .compose-view.is-burning .burn-button, .compose-view.is-burning .hold-option, .compose-view.is-burning .near-privacy { opacity: 0; pointer-events: none; }
     .burn-button { transition: opacity .25s ease, transform .2s, box-shadow .2s, background .2s; }
     .near-privacy { margin: 8px 0 0; color: #b9c2c5; font-size: .72rem; transition: opacity .25s ease; }
+    /* Chỉ gợi ý bật lửa khi trình duyệt yêu cầu giảm chuyển động. */
+    .motion-choice { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 3px 9px; margin: 3px 0 0; color: #c6cbcd; font-size: .74rem; transition: opacity .25s ease; }
+    .motion-choice button { min-height: 44px; padding: 5px 10px; border: 0; border-radius: 8px; color: #ffd39b; background: transparent; font-size: .78rem; font-weight: 700; text-decoration: underline; text-underline-offset: 3px; }
+    .motion-choice button:hover { background: rgba(235,171,103,.12); }
+    .compose-view.is-burning .motion-choice { opacity: 0; pointer-events: none; }
     .burn-button { position: relative; isolation: isolate; }
     .burn-button::before { content: ""; position: absolute; inset: -6px; z-index: -1; border-radius: 999px; opacity: 0; background: conic-gradient(#ffe0a4 var(--hold-angle, 0deg), rgba(255,218,164,.12) 0); -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 5px), #000 calc(100% - 4px)); mask: radial-gradient(farthest-side, transparent calc(100% - 5px), #000 calc(100% - 4px)); transition: opacity .2s; }
     .burn-button.holding::before { opacity: 1; }
@@ -246,6 +251,8 @@
       .view { transform: none !important; transition: opacity .3s ease; }
       /* Khi chỉ mờ dần, không để dải cháy sém đứng yên dưới giấy. */
       .paper.burning .scorch { opacity: 0; }
+      /* Người dùng có thể chủ động xem lửa ngay trong trang. */
+      body.fire-override .paper.burning .scorch { opacity: 1; }
     }
     /* Chỉ hiện bảng hiệu năng khi URL có ?perf=1. */
     .perf-panel { position: fixed; right: 10px; bottom: 10px; z-index: 20; padding: 6px 9px; border-radius: 6px; color: #fff2d9; background: rgba(7,15,24,.84); font: 12px/1.3 monospace; pointer-events: none; }
@@ -297,7 +304,7 @@
           </div>
         </div>
         <!-- Đổi ý dùng cùng ô nút, lời hứa riêng tư luôn ở ngay dưới. -->
-        <div class="burn-actions"><div class="action-row"><div class="button-slot"><button class="primary burn-button" id="burnButton" type="button" aria-label="Đốt đi" disabled><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M13 2c1 4-1 6-3 9-1.5-1.5-2-3-2-4-5 5-5 11-1 14 3 2 8 2 11-1 4-4 2-9-1-12 0 3-1 4-2 5 .5-4 0-7-2-11Z" fill="currentColor"/></svg><span id="burnLabel">Đốt đi</span></button><button class="cancel-button" id="cancelButton" type="button" aria-label="Đổi ý, giữ lại tờ giấy" hidden>Đổi ý</button></div><p class="near-privacy">Không lưu, không gửi đi đâu cả.</p></div><label class="hold-option"><input id="holdMode" type="checkbox"><span>Giữ để đốt · 1,5 giây</span></label></div>
+        <div class="burn-actions"><div class="action-row"><div class="button-slot"><button class="primary burn-button" id="burnButton" type="button" aria-label="Đốt đi" disabled><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M13 2c1 4-1 6-3 9-1.5-1.5-2-3-2-4-5 5-5 11-1 14 3 2 8 2 11-1 4-4 2-9-1-12 0 3-1 4-2 5 .5-4 0-7-2-11Z" fill="currentColor"/></svg><span id="burnLabel">Đốt đi</span></button><button class="cancel-button" id="cancelButton" type="button" aria-label="Đổi ý, giữ lại tờ giấy" hidden>Đổi ý</button></div><p class="near-privacy">Không lưu, không gửi đi đâu cả.</p><p class="motion-choice" id="motionChoice" hidden><span id="motionChoiceText">Chế độ giảm chuyển động đang ẩn lửa.</span><button id="motionToggle" type="button" aria-pressed="false">Hiện lửa</button></p></div><label class="hold-option"><input id="holdMode" type="checkbox"><span>Giữ để đốt · 1,5 giây</span></label></div>
         <p class="hint" id="status" role="status" aria-live="polite"></p>
       </section>
 
@@ -345,14 +352,25 @@
   });
   const $ = id => document.getElementById(id);
   const motion = matchMedia('(prefers-reduced-motion: reduce)');
+  let fireOverride = false;
+  const reducedMotion = () => motion.matches && !fireOverride;
   const els = {
     canvas: $('effects'), ink: $('inkCanvas'), paper: $('paper'), textarea: $('sadness'),
     count: $('charCount'), burnButton: $('burnButton'), burnLabel: $('burnLabel'), holdMode: $('holdMode'),
     cancel: $('cancelButton'), compose: $('composeView'), quiet: $('quietView'), result: $('resultView'),
     breath: $('breathView'), status: $('status'), sound: $('soundToggle'), volume: $('volume'),
     captionToggle: $('captionToggle'), caption: $('soundCaption'), comfort: $('comfortText'),
+    motionChoice: $('motionChoice'), motionChoiceText: $('motionChoiceText'), motionToggle: $('motionToggle'),
     announcement: $('comfortAnnouncement')
   };
+  // Giảm chuyển động là mặc định; chỉ bật Canvas lửa khi người dùng chọn rõ ràng.
+  function syncMotionChoice() {
+    els.motionChoice.hidden = !motion.matches;
+    els.motionChoiceText.textContent = fireOverride ? 'Hiệu ứng lửa đã bật.' : 'Chế độ giảm chuyển động đang ẩn lửa.';
+    els.motionToggle.textContent = fireOverride ? 'Dùng hiệu ứng dịu' : 'Hiện lửa';
+    els.motionToggle.setAttribute('aria-pressed', String(fireOverride));
+    document.body.classList.toggle('fire-override', motion.matches && fireOverride);
+  }
   const comfort = [
     ['Nỗi buồn đã bay đi rồi.', 'Bạn đã làm rất tốt khi viết nó ra.'],
     ['Bạn không cần giải quyết mọi điều ngay lúc này.', 'Nghỉ một chút nhé.'],
@@ -610,6 +628,13 @@
         if (on) this.caption('Phụ đề âm thanh đã bật.');
         else { clearTimeout(this.captionTimer); els.caption.classList.remove('visible'); els.caption.hidden = true; }
       });
+      els.motionToggle.addEventListener('click', () => {
+        fireOverride = !fireOverride;
+        syncMotionChoice();
+        if (reducedMotion()) { particles.clear(); this.fireLight(0); }
+        else scheduleLoop();
+      });
+      syncMotionChoice();
       this.syncSound(audio);
       this.updateCount();
     }
@@ -714,7 +739,7 @@
     }
     clear() { while (this.active.length) this.pool.push(this.active.pop()); this.ctx.clearRect(0,0,this.width,this.height); }
     update(dt,now) {
-      if (!motion.matches) {
+      if (!reducedMotion()) {
         this.ambientBudget += dt * 1.4;
         while (this.ambientBudget >= 1) { this.emit('ash',this.width*(.25+Math.random()*.5),this.height+9,true); this.ambientBudget--; }
       }
@@ -733,7 +758,7 @@
     }
     draw(controller) {
       const c=this.ctx; c.clearRect(0,0,this.width,this.height);
-      if (motion.matches) return;
+      if (reducedMotion()) return;
       const edge=controller.edge;
       if (controller.mode==='burning' && edge) {
         c.save(); c.beginPath();
@@ -911,7 +936,7 @@
       // Nền lửa dùng cùng cường độ với mép cháy, hạt và ánh sáng.
       this.beds.fireGain.gain.setTargetAtTime(CONFIG.fireBedVolume*(.08+.92*intensity)*tail,t,.13);
       this.beds.windGain.gain.setTargetAtTime(CONFIG.windVolume*(.22+.55*progress+.25*(1-intensity)),t,.22);
-      this.crackleBudget += dt*(CONFIG.crackleBasePerSecond+CONFIG.cracklePeakPerSecond*intensity)*(motion.matches?.16:1)*tail;
+      this.crackleBudget += dt*(CONFIG.crackleBasePerSecond+CONFIG.cracklePeakPerSecond*intensity)*(reducedMotion()?.16:1)*tail;
       while (this.crackleBudget>=1) {
         const freq=650+Math.random()*2200;
         this.noiseShot(.012+Math.random()*.029,'highpass',freq,freq*.65,(.033+Math.random()*.085)*(.3+.7*intensity));
@@ -1104,11 +1129,11 @@
       this.ui.beginBurn();
       this.ui.caption('xoẹt… lửa bén…');
       this.audio.begin(true);
-      if (!motion.matches) navigator.vibrate?.(18);
+      if (!reducedMotion()) navigator.vibrate?.(18);
       scheduleLoop();
     }
     setEdge(progress) {
-      if (motion.matches) {
+      if (reducedMotion()) {
         els.paper.style.clipPath='';
         els.paper.style.opacity=String(1-progress);
         this.edge=null;
@@ -1194,7 +1219,7 @@
       this.scorchInk(edge);
       if (edge) this.lineSparks(previousFront,front);
       this.emit(dt,edge,intensity);
-      this.ui.fireLight(motion.matches?0:intensity);
+      this.ui.fireLight(reducedMotion()?0:intensity);
       this.audio.update(progress,dt,intensity);
       if (progress>.12 && !this.crackleCaption) { this.crackleCaption=true; this.ui.caption('tí tách…'); }
       if (progress>.77 && !this.tailCaption) { this.tailCaption=true; this.ui.caption('gió nhẹ…'); }
@@ -1232,7 +1257,7 @@
       this.ui.fireLight(0);
       this.audio.finish();
       this.ui.enterQuiet();
-      if (!motion.matches) navigator.vibrate?.(12);
+      if (!reducedMotion()) navigator.vibrate?.(12);
       setTimeout(() => {
         els.ink.width=els.ink.height=0;
         this.baseInk.width=this.baseInk.height=0; this.glyphs=[]; this.lines=[];
@@ -1282,7 +1307,7 @@
     controller.update(dt);
     particles.update(dt,now);
     particles.draw(controller);
-    if (!motion.matches || controller.active || particles.active.length) raf=requestAnimationFrame(frame);
+    if (!reducedMotion() || controller.active || particles.active.length) raf=requestAnimationFrame(frame);
     else raf=0;
   }
   function scheduleLoop() {
@@ -1301,10 +1326,12 @@
     }
   });
   motion.addEventListener?.('change',() => {
-    if (motion.matches) { particles.clear(); ui.fireLight(0); }
+    if (!motion.matches) fireOverride=false;
+    syncMotionChoice();
+    if (reducedMotion()) { particles.clear(); ui.fireLight(0); }
     scheduleLoop();
   });
-  if (!motion.matches) scheduleLoop();
+  if (!reducedMotion()) scheduleLoop();
 })();
   </script>
 </body>
